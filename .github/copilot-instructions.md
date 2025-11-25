@@ -14,9 +14,16 @@ Build and Docker
 - Default local build: `make build`. Important details:
   - `Makefile` computes `VERSION` using Git tags/commit and injects it with `-ldflags "-X=github.com/git-account/kbot/cmd.appVersion=${VERSION}"`.
   - The Makefile sets `CGO_ENABLED=0 GOOS=linux GOARCH=$(dpkg --print-architecture)` so builds are static linux binaries.
-- Docker: `Dockerfile` uses a multi-stage build. Important notes:
-  - The builder must match `go.mod` `go` version. The repo uses `go 1.24`, so the builder must be `golang:1.24` (or newer). If you change `go.mod`, update the Dockerfile accordingly.
-  - The Dockerfile copies certs from `alpine:latest` into the final `scratch` image — keep that if you need TLS certs in the minimal image.
++- Docker: `Dockerfile` uses a multi-stage build and accepts the following build-args which let you cross-compile for different OS/architectures:
++  - `TARGETOS` (default: `linux`) — GOOS value to build a binary for
++  - `TARGETARCH` (default: `amd64`) — GOARCH value to build a binary for
++  - `VERSION` (default: `dev`) — used to inject the `appVersion` value in the binary with `-ldflags`
++  - `BASE_IMAGE` (default: `scratch`) — final base image for the runtime stage. Set this to a Windows base (e.g., `mcr.microsoft.com/windows/nanoserver:1809`) when building a Windows image.
++
++  Important notes:
++  - The builder must match `go.mod` `go` version. The repo uses `go 1.24`, so the builder must be `golang:1.24` (or newer). If you change `go.mod`, update the Dockerfile accordingly.
++  - For multi-arch images use Docker Buildx: `docker buildx build --platform linux/amd64,linux/arm64,windows/amd64 --build-arg VERSION=${VERSION} -t ${REGISTRY}/${APP}:${VERSION} --push .`
++  - macOS images are not supported by Docker — for macOS you can cross-compile a darwin binary using `make macos` and ship it as an artifact, but it cannot be packaged into a Docker container.
   - Use `go mod download` (or `go env -w GOPRIVATE=...` as needed) inside the builder to populate the module cache before `make build`.
 
 Runtime / environment

@@ -49,7 +49,17 @@ all: linux arm macos windows
 	@echo "Built all platforms"
 
 image:
-	docker build . -t ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
+	# Build multi-platform images using buildx (requires docker buildx and push permissions)
+	docker buildx build --platform linux/amd64,linux/arm64,windows/amd64 \
+		--build-arg VERSION=${VERSION} \
+		-t ${REGISTRY}/${APP}:${VERSION} --push .
+
+image-local:
+	# Build a single platform image locally using build args (no need to set --platform)
+	# Note: building for a different platform without QEMU may produce an image that won't run locally
+	docker build \
+		--build-arg TARGETOS=${TARGETOS} --build-arg TARGETARCH=${TARGETARCH} --build-arg VERSION=${VERSION} \
+		-t ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH} .
 
 push:
 	docker push ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
