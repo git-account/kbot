@@ -1,5 +1,7 @@
 APP=$(shell basename $(shell git remote get-url origin))
 REGISTRY=regreth
+BUILDER_IMAGE ?= quay.io/projectquay/golang:1.24
+BASE_IMAGE ?= scratch
 VERSION=$(shell git describe --tags --abbrev=0)-$(shell git rev-parse --short HEAD)
 # default
 TARGETOS=linux
@@ -18,7 +20,7 @@ WINDOWS_ARCH=amd64
 format: 
 	gofmt -s -w ./
 
-.PHONY: format lint test get build linux arm macos windows all image push clean
+.PHONY: format lint test get build linux arm macos windows all image image-all image-local push clean
 
 lint:
 	golint
@@ -49,17 +51,27 @@ all: linux arm macos windows
 	@echo "Built all platforms"
 
 image:
-	# Build multi-platform images using buildx (requires docker buildx and push permissions)
-	docker buildx build --platform linux/amd64,linux/arm64,windows/amd64 \
-		--build-arg VERSION=${VERSION} \
-		-t ${REGISTRY}/${APP}:${VERSION} --push .
+	# Build a single platform image using docker build
+	# Note: building images for other architectures without QEMU/emulation may result in images that don't run on your host
+	docker build \
+		--build-arg TARGETOS=${TARGETOS} --build-arg TARGETARCH=${TARGETARCH} --build-arg VERSION=${VERSION} \
+		--build-arg BUILDER_IMAGE=${BUILDER_IMAGE} --build-arg BASE_IMAGE=${BASE_IMAGE} \
+		-t ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH} .
 
 image-local:
 	# Build a single platform image locally using build args (no need to set --platform)
 	# Note: building for a different platform without QEMU may produce an image that won't run locally
 	docker build \
 		--build-arg TARGETOS=${TARGETOS} --build-arg TARGETARCH=${TARGETARCH} --build-arg VERSION=${VERSION} \
+		--build-arg BUILDER_IMAGE=${BUILDER_IMAGE} --build-arg BASE_IMAGE=${BASE_IMAGE} \
 		-t ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH} .
+
+image-all:
+	# Build multiple single-arch images using docker build (no manifests, not multi-arch image). This loops over common platforms.
+	$(MAKE) image TARGETOS=linux TARGETARCH=amd64 BUILDER_IMAGE=${BUILDER_IMAGE} BASE_IMAGE=alpine
+	$(MAKE) image TARGETOS=linux TARGETARCH=arm64 BUILDER_IMAGE=${BUILDER_IMAGE} BASE_IMAGE=alpine
+	# Windows images will need a Windows base image and a Windows builder to create a runnable image from linux host.
+	$(MAKE) image TARGETOS=windows TARGETARCH=amd64 BUILDER_IMAGE=${BUILDER_IMAGE} BASE_IMAGE=mcr.microsoft.com/windows/nanoserver:1809
 
 push:
 	docker push ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}

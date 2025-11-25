@@ -4,8 +4,9 @@ ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ARG VERSION=dev
 ARG BASE_IMAGE=scratch
+ARG BUILDER_IMAGE=quay.io/projectquay/golang:1.24
 
-FROM golang:1.24 AS builder
+FROM ${BUILDER_IMAGE} AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
