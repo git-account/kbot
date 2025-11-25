@@ -1,11 +1,17 @@
 APP=$(shell basename $(shell git remote get-url origin))
-REGISTRY=regreth
+REGISTRY=ghcr.io/git-account
 BUILDER_IMAGE ?= quay.io/projectquay/golang:1.24
 BASE_IMAGE ?= scratch
 VERSION=$(shell git describe --tags --abbrev=0)-$(shell git rev-parse --short HEAD)
-# default
-TARGETOS=linux
-TARGETARCH=arm64
+# Determine host OS/ARCH and default TARGETOS/TARGETARCH to them
+HOST_UNAME_S := $(shell uname -s 2>/dev/null || echo Linux)
+HOST_UNAME_M := $(shell uname -m 2>/dev/null || echo x86_64)
+HOST_OS := $(shell echo $(HOST_UNAME_S) | tr '[:upper:]' '[:lower:]' | sed -e 's/mingw.*/windows/' -e 's/cygwin.*/windows/')
+HOST_ARCH := $(shell echo $(HOST_UNAME_M) | sed -e 's/x86_64/amd64/' -e 's/amd64/amd64/' -e 's/aarch64/arm64/' -e 's/arm64/arm64/' -e 's/armv7l/armv7/')
+
+# default to host values but allow overrides
+TARGETOS ?= $(HOST_OS)
+TARGETARCH ?= $(HOST_ARCH)
 
 # Supported platforms
 LINUX_OS=linux
@@ -50,13 +56,14 @@ windows: format get
 all: linux arm macos windows
 	@echo "Built all platforms"
 
+IMAGE_TAG=${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
 image:
 	# Build a single platform image using docker build
 	# Note: building images for other architectures without QEMU/emulation may result in images that don't run on your host
 	docker build \
 		--build-arg TARGETOS=${TARGETOS} --build-arg TARGETARCH=${TARGETARCH} --build-arg VERSION=${VERSION} \
 		--build-arg BUILDER_IMAGE=${BUILDER_IMAGE} --build-arg BASE_IMAGE=${BASE_IMAGE} \
-		-t ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH} .
+		-t ${IMAGE_TAG} .
 
 image-local:
 	# Build a single platform image locally using build args (no need to set --platform)
@@ -64,7 +71,7 @@ image-local:
 	docker build \
 		--build-arg TARGETOS=${TARGETOS} --build-arg TARGETARCH=${TARGETARCH} --build-arg VERSION=${VERSION} \
 		--build-arg BUILDER_IMAGE=${BUILDER_IMAGE} --build-arg BASE_IMAGE=${BASE_IMAGE} \
-		-t ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH} .
+		-t ${IMAGE_TAG} .
 
 image-all:
 	# Build multiple single-arch images using docker build (no manifests, not multi-arch image). This loops over common platforms.
@@ -74,6 +81,7 @@ image-all:
 	$(MAKE) image TARGETOS=windows TARGETARCH=amd64 BUILDER_IMAGE=${BUILDER_IMAGE} BASE_IMAGE=mcr.microsoft.com/windows/nanoserver:1809
 
 push:
-	docker push ${REGISTRY}/${APP}:${VERSION}-${TARGETARCH}
+	docker push ${IMAGE_TAG}
 clean:
 	rm -rf kbot kbot-* *.exe
+	-docker rmi ${IMAGE_TAG}
