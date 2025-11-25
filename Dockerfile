@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
+# Build arguments with default values 
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 ARG VERSION=dev
