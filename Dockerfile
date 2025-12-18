@@ -20,7 +20,11 @@ ARG VERSION
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -v -o /kbot -ldflags "-X=github.com/git-account/kbot/cmd.appVersion=${VERSION}" .
 
+FROM alpine:latest as certs
+RUN apk --no-cache add ca-certificates
+
 FROM ${BASE_IMAGE} as final
 WORKDIR /
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /kbot /kbot
 ENTRYPOINT ["/kbot"]
