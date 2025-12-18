@@ -41,7 +41,7 @@ spec:
           path: /dev/mem
         name: dev-mem
       containers:
-        - name: {{ .Chart.Name }}
+        - name: {{ .Release.Name }}
           {{- with .Values.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -49,7 +49,7 @@ spec:
           volumeMounts:
           - mountPath: /dev/memory
             name: dev-mem
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: {{ .Values.image.repository }}/{{ .Chart.Name }}:{{ .Values.image.tag }}-{{ .Values.image.arch | default "amd64"}}
           env:
           - name: {{ .Values.secret.tokenName }}
             valueFrom:
